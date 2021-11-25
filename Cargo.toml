@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "meme-bevy",
+    "meme-cli",
+    "memeinator",
+]
+
+# [patch.'https://github.com/TheRawMeatball/bevy']
+# bevy = { path = "../bevy" }
+
+# [patch.'https://github.com/TheRawMeatball/ui4']
+# ui4 = { path = "../ui4" }
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# Maybe also enable only a small amount of optimization for our code:
+[profile.dev]
+opt-level = 1

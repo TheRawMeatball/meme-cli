@@ -1,0 +1,24 @@
+[package]
+name = "meme-bevy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+dev = ["bevy/dynamic"]
+
+[dependencies]
+memeinator = { path = "../memeinator" }
+ui4 = { git = "https://github.com/TheRawMeatball/ui4", features = ["nightly"] }
+arboard = "2"
+
+[dependencies.bevy]
+git = "https://github.com/TheRawMeatball/bevy"
+branch = "runs-ui4-migrated"
+default-features = false
+features = ["bevy_sprite2"]
+
+[dependencies.bevy-inspector-egui]
+git = "https://github.com/TheRawMeatball/bevy-inspector-egui"
+branch = "runs-ui4-render-attempt"

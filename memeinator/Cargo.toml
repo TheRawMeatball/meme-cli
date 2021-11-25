@@ -1,0 +1,15 @@
+[package]
+name = "memeinator"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dirs = "4"
+anyhow = "1.0.47"
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+git2 = "0.13.24"
+image = "0.23"
+fontdue = "0.6.2"

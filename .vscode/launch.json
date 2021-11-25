@@ -1,0 +1,106 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'meme-bevy'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=meme-bevy",
+                    "--package=meme-bevy",
+                    "--features=dev"
+                ],
+                "filter": {
+                    "name": "meme-bevy",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "${env:LD_LIBRARY_PATH}:${env:HOME}/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib:${env:HOME}/.cache/comp-cache/compile/debug/",
+                "WINIT_X11_SCALE_FACTOR": "1",
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'meme-bevy'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=meme-bevy",
+                    "--package=meme-bevy"
+                ],
+                "filter": {
+                    "name": "meme-bevy",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'memeinator'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=memeinator"
+                ],
+                "filter": {
+                    "name": "memeinator",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'meme-cli'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=meme-cli",
+                    "--package=meme-cli"
+                ],
+                "filter": {
+                    "name": "meme-cli",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'meme-cli'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=meme-cli",
+                    "--package=meme-cli"
+                ],
+                "filter": {
+                    "name": "meme-cli",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
