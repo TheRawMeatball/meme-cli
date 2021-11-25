@@ -80,7 +80,10 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+                "generate",
+                "distracted-boyfriend"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {

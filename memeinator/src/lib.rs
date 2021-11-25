@@ -131,7 +131,10 @@ impl Config {
         match fs::read_to_string(config_path) {
             Ok(config_str) => Ok(serde_json::from_str(&config_str)?),
             Err(_) => Ok(Config {
-                sources: vec![MemeSource::LocalPath("/home/meatball/memes".to_owned())],
+                sources: vec![MemeSource::GitUrl {
+                    url: "https://github.com/TheRawMeatball/memeinator-memesrc.git".to_owned(),
+                    alias: "default".to_owned(),
+                }],
             }),
         }
     }
@@ -237,8 +240,10 @@ impl MemeSource {
             MemeSource::GitUrl { url, alias } => {
                 let path = cache.join(&alias);
                 if path.is_dir() {
+                    println!("Updating meme repository {} ({})", alias, url);
                     git_ops::update_repo(&path)?;
                 } else {
+                    println!("Cloning meme repository {} ({})", alias, url);
                     git_ops::clone_repo(&path, url)?;
                 }
                 path

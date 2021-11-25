@@ -44,20 +44,21 @@ struct Generate {
 impl Generate {
     fn run(self, config: Config) -> Result<(), Error> {
         let meme = config.get_meme_template(&self.template)?;
-
+        println!("Template found");
         let img_buffer = meme.render(&self.inputs, &config)?;
-        let mut clipboard = arboard::Clipboard::new()?;
+        println!("Meme rendered");
 
         if let Some(out_path) = self.output {
             img_buffer.save(out_path)?;
         } else {
+            let mut clipboard = arboard::Clipboard::new()?;
             clipboard.set_image(ImageData {
                 width: img_buffer.width() as _,
                 height: img_buffer.height() as _,
                 bytes: Cow::Borrowed(&img_buffer),
             })?;
         }
-
+        println!("Done!");
         Ok(())
     }
 }
