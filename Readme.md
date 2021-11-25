@@ -22,7 +22,7 @@ meme-cli generate gru-plan "make memecli" "get it working enough to release it" 
 
 will generate the following meme, and put it on your clipboard to easily share it:
 
-[](resources/example.png)
+![(the meme you generated)](resources/example.png)
 
 ## Tips and tricks
 
