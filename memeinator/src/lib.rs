@@ -127,7 +127,7 @@ impl Config {
     pub fn load() -> Result<Config, Error> {
         let config_path = dirs::config_dir()
             .ok_or_else(|| anyhow!("config dir not found"))?
-            .join("memecli.conf.toml");
+            .join("memecli.conf.json");
         match fs::read_to_string(config_path) {
             Ok(config_str) => Ok(serde_json::from_str(&config_str)?),
             Err(_) => Ok(Config {
@@ -256,7 +256,7 @@ impl MemeSource {
     fn to_path(&self) -> PathBuf {
         let cache = dirs::cache_dir().unwrap().join("memecli");
         match self {
-            MemeSource::GitUrl { url, alias } => cache.join(alias),
+            MemeSource::GitUrl { alias, .. } => cache.join(alias),
             MemeSource::LocalPath(path) => PathBuf::from(path),
         }
     }
