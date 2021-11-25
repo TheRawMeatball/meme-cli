@@ -100,6 +100,7 @@ fn top_buttons(mut ctx: Ctx) -> Ctx {
     let mut save_meme_state = ctx.state::<(
         Res<TextRects>,
         ResMut<MemeName>,
+        Res<MemeTextColor>,
         ResMut<Assets<Image>>,
         ResMut<Config>,
         Query<&Handle<Image>, With<MemeSprite>>,
@@ -188,7 +189,7 @@ fn top_buttons(mut ctx: Ctx) -> Ctx {
             .child(rb(MemeTextColor::White, "White"))
     })
     .child(button("Save Template").with(OnClick::new(move |w| {
-        let (rects, mut meme_name, images, config, meme_sprite, rects_q) =
+        let (rects, mut meme_name, color, images, config, meme_sprite, rects_q) =
             save_meme_state.get_mut(w);
 
         if meme_name.0.is_empty() {
@@ -220,7 +221,10 @@ fn top_buttons(mut ctx: Ctx) -> Ctx {
             width,
             height,
             MemeConfig {
-                color: Some([0., 0., 0., 1.]),
+                color: Some(match *color {
+                    MemeTextColor::Black => [0., 0., 0., 1.],
+                    MemeTextColor::White => [1., 1., 1., 1.],
+                }),
                 text,
             },
             &meme_name.0,
