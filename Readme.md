@@ -24,6 +24,8 @@ will generate the following meme, and put it on your clipboard to easily share i
 
 ![(the meme you generated)](resources/example.png)
 
+Note: if you don't get the meme on your clipboard, you might need to install a clipboard manager or enable image support on your clipboard manager.
+
 ## Tips and tricks
 
 You can run `meme-cli generate-proto-completions` to generate some rough completion scripts for your preferred shell. You can install them directly using the instructions for your shell, but I'd recommend extending them to support template completions for `meme-cli generate`. As an example, if you're using fish, it means adding this line to your completion file:
