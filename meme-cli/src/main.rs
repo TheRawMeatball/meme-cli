@@ -1,8 +1,8 @@
 use std::{borrow::Cow, path::PathBuf};
 
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 use arboard::ImageData;
-use memeinator::Config;
+use memeinator::{Config, MemeConfig, MemeText};
 use structopt::{clap::Shell, StructOpt};
 
 #[derive(Debug, StructOpt)]
@@ -71,7 +71,7 @@ struct MakeTemplate {
     input: Option<PathBuf>,
 
     /// The template name
-    template: String,
+    template_name: String,
 
     /// The coordinates for text, given in `LEFT-TOP-RIGHT-BOTTOM`
     coordinates: Vec<String>,
@@ -79,7 +79,46 @@ struct MakeTemplate {
 
 impl MakeTemplate {
     fn run(self, config: Config) -> Result<(), Error> {
-        Err(anyhow::anyhow!("not implemented yet, sowwy :3"))
+        let img = if let Some(path) = self.input {
+            image::open(path)?.to_rgba8()
+        } else {
+            let mut clipboard = arboard::Clipboard::new()?;
+            clipboard.get_image().map_err(Error::from).and_then(|img| {
+                image::RgbaImage::from_raw(
+                    img.width as u32,
+                    img.height as u32,
+                    img.bytes.into_owned(),
+                )
+                .ok_or(anyhow!("image from clipboard not compatible"))
+            })?
+        };
+        let mut coords = Vec::with_capacity(self.coordinates.len());
+        for coord in self.coordinates {
+            let mut iterator = coord.split("-").map(str::parse::<u32>);
+            let e = || anyhow!("Incorrect coordinate literal");
+            let text = MemeText {
+                min: (
+                    iterator.next().ok_or_else(e)??,
+                    iterator.next().ok_or_else(e)??,
+                ),
+                max: (
+                    iterator.next().ok_or_else(e)??,
+                    iterator.next().ok_or_else(e)??,
+                ),
+            };
+            coords.push(text);
+        }
+        let meme_config = MemeConfig {
+            color: Some([0., 0., 0., 1.]),
+            text: coords,
+        };
+        config.write_template(
+            img.as_raw(),
+            img.width(),
+            img.height(),
+            meme_config,
+            &self.template_name,
+        )
     }
 }
 
