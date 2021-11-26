@@ -1,9 +1,10 @@
-use std::{borrow::Cow, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Error};
-use arboard::ImageData;
 use memeinator::{Config, MemeConfig, MemeText};
 use structopt::{clap::Shell, StructOpt};
+
+mod image_io;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -51,12 +52,7 @@ impl Generate {
         if let Some(out_path) = self.output {
             img_buffer.save(out_path)?;
         } else {
-            let mut clipboard = arboard::Clipboard::new()?;
-            clipboard.set_image(ImageData {
-                width: img_buffer.width() as _,
-                height: img_buffer.height() as _,
-                bytes: Cow::Borrowed(&img_buffer),
-            })?;
+            image_io::image_out(&img_buffer)?;
         }
         println!("Done!");
         Ok(())
@@ -82,15 +78,7 @@ impl MakeTemplate {
         let img = if let Some(path) = self.input {
             image::open(path)?.to_rgba8()
         } else {
-            let mut clipboard = arboard::Clipboard::new()?;
-            clipboard.get_image().map_err(Error::from).and_then(|img| {
-                image::RgbaImage::from_raw(
-                    img.width as u32,
-                    img.height as u32,
-                    img.bytes.into_owned(),
-                )
-                .ok_or(anyhow!("image from clipboard not compatible"))
-            })?
+            image_io::image_in()?
         };
         let mut coords = Vec::with_capacity(self.coordinates.len());
         for coord in self.coordinates {

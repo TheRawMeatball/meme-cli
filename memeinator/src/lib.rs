@@ -244,7 +244,7 @@ impl MemeSource {
                     git_ops::update_repo(&path)?;
                 } else {
                     println!("Cloning meme repository {} ({})", alias, url);
-                    fs::create_dir(&path)?;
+                    fs::create_dir_all(&path)?;
                     git_ops::clone_repo(&path, url)?;
                 }
                 path

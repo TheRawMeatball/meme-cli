@@ -6,7 +6,6 @@ use std::{
 use anyhow::{anyhow, Error};
 
 pub(crate) fn update_repo(path: &Path) -> Result<(), Error> {
-    println!("hey!");
     Command::new("git")
         .args(["pull"])
         .current_dir(path)

@@ -8,7 +8,9 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 structopt = "0.3.25"
-arboard = "2"
 memeinator = { path = "../memeinator" }
 anyhow = "1.0.47"
 image = "0.23"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+arboard = "2"
