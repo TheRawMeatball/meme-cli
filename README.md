@@ -6,13 +6,19 @@ Yes, really.
 
 ## Installation
 
-Currently, the only way to install this is by cloning the repository and building manually. AUR packages and a crates.io release are planned.
+```sh
+cargo install meme-cli
+```
+
+Alternatively, install from source using
 
 ```sh
 git clone https://github.com/TheRawMeatball/meme-cli
 cd meme-cli
 cargo install --path meme-cli
 ```
+
+An AUR package is also planned
 
 ## Usage Example
 
