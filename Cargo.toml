@@ -1,6 +1,6 @@
 [package]
 name = "meme-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "A CLI tool to make dank memes, quickly"
@@ -10,7 +10,7 @@ repository = "https://github.com/TheRawMeatball/meme-cli"
 
 [dependencies]
 structopt = "0.3.25"
-memeinator = { path = "memeinator", version = "0.1.1" }
+memeinator = { path = "memeinator", version = "0.1.0" }
 anyhow = "1.0.47"
 image = "0.23"
 
