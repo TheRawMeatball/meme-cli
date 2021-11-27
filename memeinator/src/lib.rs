@@ -144,7 +144,7 @@ impl Config {
     }
     pub fn fetch_template_list(&self) -> impl Iterator<Item = String> + '_ {
         self.fetch_source_list()
-            .map(MemeSource::to_path)
+            .flat_map(MemeSource::to_path)
             .flat_map(|path| path.read_dir())
             .flatten()
             .flatten()
@@ -153,7 +153,7 @@ impl Config {
 
     pub fn get_meme_template(&self, template: &str) -> Result<MemeTemplate, Error> {
         for source in &self.sources {
-            let source_dir = source.to_path_and_update()?;
+            let source_dir = source.to_path()?;
 
             for meme_dir in source_dir.read_dir().with_context(|| {
                 format!(
@@ -232,7 +232,7 @@ pub enum MemeSource {
 }
 
 impl MemeSource {
-    fn to_path_and_update(&self) -> Result<PathBuf, Error> {
+    pub fn to_path_and_update(&self) -> Result<PathBuf, Error> {
         let cache = dirs::cache_dir()
             .ok_or_else(|| anyhow!("cache dir not found"))?
             .join("memecli");
@@ -254,11 +254,13 @@ impl MemeSource {
         Ok(path)
     }
 
-    fn to_path(&self) -> PathBuf {
+    pub fn to_path(&self) -> Result<PathBuf, Error> {
         let cache = dirs::cache_dir().unwrap().join("memecli");
-        match self {
+        let source = match self {
             MemeSource::GitUrl { alias, .. } => cache.join(alias),
             MemeSource::LocalPath(path) => PathBuf::from(path),
-        }
+        };
+        fs::create_dir_all(&source)?;
+        Ok(source)
     }
 }

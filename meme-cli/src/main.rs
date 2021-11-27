@@ -18,6 +18,8 @@ enum Opt {
     ListSources,
     #[structopt(about = "List all template names")]
     ListTemplates,
+    #[structopt(about = "Fetch potential new memes from the configured sources")]
+    UpdateSources,
     #[structopt(about = "Generates a basic completion script")]
     GenerateProtoCompletions(GenerateProtoCompletions),
 }
@@ -117,6 +119,7 @@ fn main() -> Result<(), Error> {
         Opt::MakeTemplate(make_template) => make_template.run(config),
         Opt::ListSources => list_sources(config),
         Opt::ListTemplates => list_templates(config),
+        Opt::UpdateSources => update_sources(config),
         Opt::GenerateProtoCompletions(completions) => {
             let shell = match completions {
                 GenerateProtoCompletions::Bash => Shell::Bash,
@@ -137,6 +140,13 @@ fn list_sources(config: Config) -> Result<(), Error> {
             }
             memeinator::MemeSource::LocalPath(path) => println!("Local source @ {}", path),
         }
+    }
+    Ok(())
+}
+
+fn update_sources(config: Config) -> Result<(), Error> {
+    for source in config.fetch_source_list() {
+        source.to_path_and_update()?;
     }
     Ok(())
 }
