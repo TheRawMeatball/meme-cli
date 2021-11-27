@@ -1,22 +1,14 @@
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use anyhow::{anyhow, Error};
-use image::{png::PngEncoder, RgbaImage};
+use image::RgbaImage;
 
 pub fn image_out(img_buffer: &RgbaImage) -> Result<(), Error> {
-    let mut child = Command::new("termux-share")
-        .args(["-a", "send", "-c", "image/png"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::inherit())
-        .spawn()?;
-    let encoder = PngEncoder::new(child.stdin.take().unwrap());
-    encoder.encode(
-        &img_buffer,
-        img_buffer.width(),
-        img_buffer.height(),
-        image::ColorType::Rgba8,
-    )?;
-    child
+    let img_path = std::env::temp_dir().join("share.png");
+    img_buffer.save(&img_path)?;
+    Command::new("termux-share")
+        .args(["-a", "send", img_path.to_str().unwrap()])
+        .spawn()?
         .wait()?
         .success()
         .then(|| ())
