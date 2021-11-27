@@ -10,7 +10,7 @@ repository = "https://github.com/TheRawMeatball/meme-cli"
 
 [dependencies]
 structopt = "0.3.25"
-memeinator = { path = "memeinator", version = "0.1.0" }
+memeinator = { path = "memeinator", version = "0.1.1" }
 anyhow = "1.0.47"
 image = "0.23"
 
