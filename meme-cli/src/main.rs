@@ -42,13 +42,17 @@ struct Generate {
     /// The output path for the meme. By default, the meme will be pushed to the clipboard.
     #[structopt(short, long)]
     output: Option<PathBuf>,
+
+    /// The maximum font size for the text. Defaults to 600.
+    #[structopt(short, long)]
+    max_size: Option<f32>,
 }
 
 impl Generate {
     fn run(self, config: Config) -> Result<(), Error> {
         let meme = config.get_meme_template(&self.template)?;
         println!("Template found");
-        let img_buffer = meme.render(&self.inputs, &config)?;
+        let img_buffer = meme.render(&self.inputs, &config, self.max_size.unwrap_or(600.))?;
         println!("Meme rendered");
 
         if let Some(out_path) = self.output {

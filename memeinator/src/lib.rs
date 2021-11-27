@@ -25,7 +25,12 @@ pub struct MemeTemplate {
 }
 
 impl MemeTemplate {
-    pub fn render(mut self, text: &[String], _config: &Config) -> Result<RgbaImage, Error> {
+    pub fn render(
+        mut self,
+        text: &[String],
+        _config: &Config,
+        max_font_size: f32,
+    ) -> Result<RgbaImage, Error> {
         let font = fontdue::Font::from_bytes(FONT, FontSettings::default()).unwrap();
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
 
@@ -35,7 +40,7 @@ impl MemeTemplate {
             let max_height = (bb.max.1 - bb.min.1) as f32;
             let max_width = (bb.max.0 - bb.min.0) as f32;
             let mut min = 5.;
-            let mut max = 600.;
+            let mut max = max_font_size;
 
             let abs_max_lines = text.split(char::is_whitespace).count();
             let glyphs = loop {
