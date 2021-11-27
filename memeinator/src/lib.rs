@@ -15,7 +15,7 @@ use fontdue::{
 use image::{save_buffer, DynamicImage, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 
-static FONT: &[u8] = include_bytes!("resources/BebasNeue-Regular.ttf");
+static FONT: &[u8] = include_bytes!("../resources/BebasNeue-Regular.ttf");
 
 mod git_ops;
 
