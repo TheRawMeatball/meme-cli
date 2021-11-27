@@ -17,6 +17,8 @@ cargo install --path meme-cli
 ## Usage Example
 
 ```sh
+# make sure to update your sources after installation, and then again regularly 
+meme-cli update-sources
 meme-cli generate gru-plan "make memecli" "get it working enough to release it" "you need to write a readme" "you need to write a readme"
 ```
 
