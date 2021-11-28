@@ -60,7 +60,7 @@ impl Generate {
             &self.inputs,
             &config,
             self.max_size.unwrap_or(600.),
-            !self.no_watermark,
+            (!self.no_watermark).then(|| config.watermark()),
         )?;
         println!("Meme rendered");
 

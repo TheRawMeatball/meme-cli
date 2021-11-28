@@ -12,7 +12,7 @@ use fontdue::{
     },
     Font, FontSettings, Metrics,
 };
-use image::{save_buffer, DynamicImage, GenericImageView, Rgba, RgbaImage};
+use image::{save_buffer, DynamicImage, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 
 static FONT: &[u8] = include_bytes!("../resources/BebasNeue-Regular.ttf");
@@ -30,7 +30,7 @@ impl MemeTemplate {
         text: &[String],
         _config: &Config,
         max_font_size: f32,
-        use_watermark: bool,
+        watermark_msg: Option<&str>,
     ) -> Result<RgbaImage, Error> {
         let font = fontdue::Font::from_bytes(FONT, FontSettings::default()).unwrap();
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
@@ -83,7 +83,7 @@ impl MemeTemplate {
             )
         }
 
-        if use_watermark {
+        if let Some(watermark) = watermark_msg {
             let (img_width, img_height) = (self.image.width(), self.image.height());
             let font_size = img_width.min(img_height) as f32 / 20.;
             layout.reset(&LayoutSettings {
@@ -94,7 +94,7 @@ impl MemeTemplate {
             layout.append(
                 &[&font],
                 &TextStyle {
-                    text: "Made with meme-cli",
+                    text: watermark,
                     px: font_size,
                     font_index: 0,
                     user_data: (),
@@ -164,9 +164,31 @@ pub struct MemeText {
     pub max: (u32, u32),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
+struct FileConfig {
+    sources: Option<Vec<MemeSource>>,
+    watermark: Option<String>,
+}
+
 pub struct Config {
     sources: Vec<MemeSource>,
+    watermark: String,
+}
+
+impl From<FileConfig> for Config {
+    fn from(fc: FileConfig) -> Self {
+        Self {
+            sources: fc.sources.unwrap_or_else(|| {
+                vec![MemeSource::GitUrl {
+                    url: "https://github.com/TheRawMeatball/memeinator-memesrc.git".to_owned(),
+                    alias: "default".to_owned(),
+                }]
+            }),
+            watermark: fc
+                .watermark
+                .unwrap_or_else(|| "Made with meme-cli".to_owned()),
+        }
+    }
 }
 
 impl Config {
@@ -175,14 +197,15 @@ impl Config {
             .ok_or_else(|| anyhow!("config dir not found"))?
             .join("memecli.conf.json");
         match fs::read_to_string(config_path) {
-            Ok(config_str) => Ok(serde_json::from_str(&config_str)?),
-            Err(_) => Ok(Config {
-                sources: vec![MemeSource::GitUrl {
-                    url: "https://github.com/TheRawMeatball/memeinator-memesrc.git".to_owned(),
-                    alias: "default".to_owned(),
-                }],
-            }),
+            Ok(config_str) => Ok(serde_json::from_str::<FileConfig>(&config_str)
+                .context("The configuration file is broken")?
+                .into()),
+            Err(_) => Ok(FileConfig::default().into()),
         }
+    }
+
+    pub fn watermark(&self) -> &str {
+        &self.watermark
     }
 
     pub fn fetch_source_list(&self) -> impl Iterator<Item = &MemeSource> + '_ {

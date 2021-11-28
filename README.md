@@ -58,7 +58,8 @@ Glad you asked! `meme-cli` is but a frontend for the true meme generation powerh
     {
       "LocalPath": "/home/your-username/memes"
     }
-  ]
+  ],
+  "watermark": "Made w/ meme-cli by TheRawMeatball"
 }
 ```
 
