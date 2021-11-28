@@ -14,7 +14,7 @@ pub(crate) fn update_repo(path: &Path) -> Result<(), Error> {
         .wait()?
         .success()
         .then(|| ())
-        .ok_or(anyhow!("Git error!"))
+        .ok_or_else(|| anyhow!("Git error updating repository at {:?}", path))
 }
 pub(crate) fn clone_repo(path: &Path, url: &str) -> Result<(), Error> {
     Command::new("git")
@@ -24,5 +24,5 @@ pub(crate) fn clone_repo(path: &Path, url: &str) -> Result<(), Error> {
         .wait()?
         .success()
         .then(|| ())
-        .ok_or(anyhow!("Git error!"))
+        .ok_or_else(|| anyhow!("Git error cloning repository into {:?}", path))
 }
