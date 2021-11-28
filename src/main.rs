@@ -46,13 +46,22 @@ struct Generate {
     /// The maximum font size for the text. Defaults to 600.
     #[structopt(short, long)]
     max_size: Option<f32>,
+
+    // Disables adding the watermark
+    #[structopt(short, long)]
+    no_watermark: bool,
 }
 
 impl Generate {
     fn run(self, config: Config) -> Result<(), Error> {
         let meme = config.get_meme_template(&self.template)?;
         println!("Template found");
-        let img_buffer = meme.render(&self.inputs, &config, self.max_size.unwrap_or(600.))?;
+        let img_buffer = meme.render(
+            &self.inputs,
+            &config,
+            self.max_size.unwrap_or(600.),
+            !self.no_watermark,
+        )?;
         println!("Meme rendered");
 
         if let Some(out_path) = self.output {

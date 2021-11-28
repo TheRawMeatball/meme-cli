@@ -7,12 +7,12 @@ use std::{
 use anyhow::{anyhow, Context, Error};
 use fontdue::{
     layout::{
-        CoordinateSystem, HorizontalAlign, Layout, LayoutSettings, TextStyle, VerticalAlign,
-        WrapStyle,
+        CoordinateSystem, GlyphPosition, GlyphRasterConfig, HorizontalAlign, Layout,
+        LayoutSettings, TextStyle, VerticalAlign, WrapStyle,
     },
-    FontSettings,
+    Font, FontSettings, Metrics,
 };
-use image::{save_buffer, DynamicImage, Rgba, RgbaImage};
+use image::{save_buffer, DynamicImage, GenericImageView, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 
 static FONT: &[u8] = include_bytes!("../resources/BebasNeue-Regular.ttf");
@@ -30,6 +30,7 @@ impl MemeTemplate {
         text: &[String],
         _config: &Config,
         max_font_size: f32,
+        use_watermark: bool,
     ) -> Result<RgbaImage, Error> {
         let font = fontdue::Font::from_bytes(FONT, FontSettings::default()).unwrap();
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
@@ -49,7 +50,7 @@ impl MemeTemplate {
                     max_height: Some(max_height),
                     max_width: Some(max_width),
                     horizontal_align: HorizontalAlign::Center,
-                    vertical_align: VerticalAlign::Middle,
+                    vertical_align: VerticalAlign::Top,
                     wrap_style: WrapStyle::Word,
                     wrap_hard_breaks: true,
                     ..Default::default()
@@ -72,41 +73,82 @@ impl MemeTemplate {
                 }
             };
 
-            for glyph in glyphs {
-                let (ref metrics, ref bytes) = raster_cache
-                    .entry(glyph.key)
-                    .or_insert_with(|| font.rasterize_config(glyph.key));
+            render_glyphs(
+                &mut self.image,
+                bb.min,
+                glyphs,
+                &mut raster_cache,
+                &font,
+                self.config.color.unwrap_or([0., 0., 0., 1.]),
+            )
+        }
 
-                for x in 0..metrics.width {
-                    for y in 0..metrics.height {
-                        let coverage = bytes[x + y * metrics.width] as f32 / u8::MAX as f32;
-                        let x = bb.min.0 + x as u32 + glyph.x as u32;
-                        let y = bb.min.1 + y as u32 + glyph.y as u32;
-                        let existing_color = self.image.get_pixel(x, y);
-                        let text_color = self.config.color.unwrap_or([0f32, 0., 0., 1.]);
-                        let colors = existing_color.0;
-                        let colors = [
-                            ((text_color[0] * coverage
-                                + (1. - coverage) * (colors[0] as f32 / u8::MAX as f32))
-                                * u8::MAX as f32) as u8,
-                            ((text_color[1] * coverage
-                                + (1. - coverage) * (colors[1] as f32 / u8::MAX as f32))
-                                * u8::MAX as f32) as u8,
-                            ((text_color[2] * coverage
-                                + (1. - coverage) * (colors[2] as f32 / u8::MAX as f32))
-                                * u8::MAX as f32) as u8,
-                            ((text_color[3] * coverage
-                                + (1. - coverage) * (colors[3] as f32 / u8::MAX as f32))
-                                * u8::MAX as f32) as u8,
-                        ];
-
-                        *self.image.get_pixel_mut(x, y) = Rgba(colors);
-                    }
-                }
-            }
+        if use_watermark {
+            let (img_width, img_height) = (self.image.width(), self.image.height());
+            let font_size = img_width.min(img_height) as f32 / 20.;
+            layout.reset(&LayoutSettings {
+                horizontal_align: HorizontalAlign::Left,
+                vertical_align: VerticalAlign::Middle,
+                ..Default::default()
+            });
+            layout.append(
+                &[&font],
+                &TextStyle {
+                    text: "Made with meme-cli",
+                    px: font_size,
+                    font_index: 0,
+                    user_data: (),
+                },
+            );
+            let glyphs = layout.glyphs();
+            render_glyphs(
+                &mut self.image,
+                (0, img_height - font_size.ceil() as u32),
+                glyphs,
+                &mut raster_cache,
+                &font,
+                self.config.color.unwrap_or([0., 0., 0., 1.]),
+            )
         }
 
         Ok(self.image)
+    }
+}
+
+fn render_glyphs(
+    image: &mut RgbaImage,
+    pos: (u32, u32),
+    glyphs: &[GlyphPosition],
+    raster_cache: &mut HashMap<GlyphRasterConfig, (Metrics, Vec<u8>)>,
+    font: &Font,
+    color: [f32; 4],
+) {
+    for glyph in glyphs {
+        let (ref metrics, ref bytes) = raster_cache
+            .entry(glyph.key)
+            .or_insert_with(|| font.rasterize_config(glyph.key));
+
+        for x in 0..metrics.width {
+            for y in 0..metrics.height {
+                let coverage = bytes[x + y * metrics.width] as f32 / u8::MAX as f32;
+                let x = pos.0 + x as u32 + glyph.x as u32;
+                let y = pos.1 + y as u32 + glyph.y as u32;
+                let existing_color = image.get_pixel(x, y);
+                let colors = existing_color.0;
+                let colors = [
+                    ((color[0] * coverage + (1. - coverage) * (colors[0] as f32 / u8::MAX as f32))
+                        * u8::MAX as f32) as u8,
+                    ((color[1] * coverage + (1. - coverage) * (colors[1] as f32 / u8::MAX as f32))
+                        * u8::MAX as f32) as u8,
+                    ((color[2] * coverage + (1. - coverage) * (colors[2] as f32 / u8::MAX as f32))
+                        * u8::MAX as f32) as u8,
+                    ((color[3] * coverage + (1. - coverage) * (colors[3] as f32 / u8::MAX as f32))
+                        * u8::MAX as f32) as u8,
+                ];
+
+                *image.get_pixel_mut(x, y) = Rgba(colors);
+            }
+        }
     }
 }
 
