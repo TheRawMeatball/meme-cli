@@ -28,7 +28,7 @@ impl MemeTemplate {
     pub fn render(
         mut self,
         text: &[String],
-        _config: &Config,
+        config: &Config,
         max_font_size: f32,
         watermark_msg: Option<&str>,
     ) -> Result<RgbaImage, Error> {
@@ -85,7 +85,7 @@ impl MemeTemplate {
 
         if let Some(watermark) = watermark_msg {
             let (img_width, img_height) = (self.image.width(), self.image.height());
-            let font_size = img_width.min(img_height) as f32 / 20.;
+            let font_size = img_width.min(img_height) as f32 / config.watermark_size_fraction;
             layout.reset(&LayoutSettings {
                 horizontal_align: HorizontalAlign::Left,
                 vertical_align: VerticalAlign::Middle,
@@ -168,11 +168,13 @@ pub struct MemeText {
 struct FileConfig {
     sources: Option<Vec<MemeSource>>,
     watermark: Option<String>,
+    watermark_size_fraction: Option<f32>,
 }
 
 pub struct Config {
     sources: Vec<MemeSource>,
     watermark: String,
+    watermark_size_fraction: f32,
 }
 
 impl From<FileConfig> for Config {
@@ -187,6 +189,7 @@ impl From<FileConfig> for Config {
             watermark: fc
                 .watermark
                 .unwrap_or_else(|| "Made with meme-cli".to_owned()),
+            watermark_size_fraction: fc.watermark_size_fraction.unwrap_or(30.),
         }
     }
 }
