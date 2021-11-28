@@ -51,6 +51,7 @@ impl MemeTemplate {
                     horizontal_align: HorizontalAlign::Center,
                     vertical_align: VerticalAlign::Middle,
                     wrap_style: WrapStyle::Word,
+                    wrap_hard_breaks: true,
                     ..Default::default()
                 });
                 layout.append(
@@ -62,9 +63,7 @@ impl MemeTemplate {
                         user_data: (),
                     },
                 );
-                if layout.lines() > abs_max_lines
-                    || layout.lines() > (max_height / candidate).ceil() as usize
-                {
+                if layout.lines() > abs_max_lines || layout.height() > max_height {
                     max = candidate;
                 } else if min - max <= 0.25 {
                     break layout.glyphs();
