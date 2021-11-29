@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Error};
+use image::EncodableLayout;
 use memeinator::{Config, MemeConfig, MemeText};
 use structopt::{clap::Shell, StructOpt};
 
@@ -40,6 +41,7 @@ struct Generate {
     inputs: Vec<String>,
 
     /// The output path for the meme. By default, the meme will be pushed to the clipboard.
+    /// Setting this to `-` will redirect output to stdout as a png.
     #[structopt(short, long)]
     output: Option<PathBuf>,
 
@@ -55,21 +57,33 @@ struct Generate {
 impl Generate {
     fn run(self, config: Config) -> Result<(), Error> {
         let meme = config.get_meme_template(&self.template)?;
-        println!("Template found");
+        eprintln!("Template found");
         let img_buffer = meme.render(
             &self.inputs,
             &config,
             self.max_size.unwrap_or(600.),
             (!self.no_watermark).then(|| config.watermark()),
         )?;
-        println!("Meme rendered");
+        eprintln!("Meme rendered");
 
         if let Some(out_path) = self.output {
-            img_buffer.save(out_path)?;
+            if out_path.as_os_str().to_str() == Some("-") {
+                let stdout = std::io::stdout();
+                let mut lock = stdout.lock();
+                let png_encoder = image::png::PngEncoder::new(&mut lock);
+                png_encoder.encode(
+                    img_buffer.as_bytes(),
+                    img_buffer.width(),
+                    img_buffer.height(),
+                    image::ColorType::Rgba8,
+                )?;
+            } else {
+                img_buffer.save(out_path)?;
+            }
         } else {
             image_io::image_out(&img_buffer)?;
         }
-        println!("Done!");
+        eprintln!("Done!");
         Ok(())
     }
 }

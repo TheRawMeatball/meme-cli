@@ -312,10 +312,10 @@ impl MemeSource {
             MemeSource::GitUrl { url, alias } => {
                 let path = cache.join(&alias);
                 if path.is_dir() {
-                    println!("Updating meme repository {} ({})", alias, url);
+                    eprintln!("Updating meme repository {} ({})", alias, url);
                     git_ops::update_repo(&path)?;
                 } else {
-                    println!("Cloning meme repository {} ({})", alias, url);
+                    eprintln!("Cloning meme repository {} ({})", alias, url);
                     fs::create_dir_all(&path)?;
                     git_ops::clone_repo(&path, url)?;
                 }
