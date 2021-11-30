@@ -133,20 +133,26 @@ fn render_glyphs(
                 let coverage = bytes[x + y * metrics.width] as f32 / u8::MAX as f32;
                 let x = pos.0 + x as u32 + glyph.x as u32;
                 let y = pos.1 + y as u32 + glyph.y as u32;
-                let existing_color = image.get_pixel(x, y);
-                let colors = existing_color.0;
-                let colors = [
-                    ((color[0] * coverage + (1. - coverage) * (colors[0] as f32 / u8::MAX as f32))
-                        * u8::MAX as f32) as u8,
-                    ((color[1] * coverage + (1. - coverage) * (colors[1] as f32 / u8::MAX as f32))
-                        * u8::MAX as f32) as u8,
-                    ((color[2] * coverage + (1. - coverage) * (colors[2] as f32 / u8::MAX as f32))
-                        * u8::MAX as f32) as u8,
-                    ((color[3] * coverage + (1. - coverage) * (colors[3] as f32 / u8::MAX as f32))
-                        * u8::MAX as f32) as u8,
-                ];
+                if (0..image.width() - 1).contains(&x) && (0..image.height() - 1).contains(&y) {
+                    let existing_color = image.get_pixel(x, y);
+                    let colors = existing_color.0;
+                    let colors = [
+                        ((color[0] * coverage
+                            + (1. - coverage) * (colors[0] as f32 / u8::MAX as f32))
+                            * u8::MAX as f32) as u8,
+                        ((color[1] * coverage
+                            + (1. - coverage) * (colors[1] as f32 / u8::MAX as f32))
+                            * u8::MAX as f32) as u8,
+                        ((color[2] * coverage
+                            + (1. - coverage) * (colors[2] as f32 / u8::MAX as f32))
+                            * u8::MAX as f32) as u8,
+                        ((color[3] * coverage
+                            + (1. - coverage) * (colors[3] as f32 / u8::MAX as f32))
+                            * u8::MAX as f32) as u8,
+                    ];
 
-                *image.get_pixel_mut(x, y) = Rgba(colors);
+                    image.put_pixel(x, y, Rgba(colors));
+                }
             }
         }
     }
