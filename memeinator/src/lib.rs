@@ -317,7 +317,7 @@ impl MemeSource {
         let path = match self {
             MemeSource::GitUrl { url, alias } => {
                 let path = cache.join(&alias);
-                if path.is_dir() {
+                if path.is_dir() && path.read_dir()?.next().is_some() {
                     eprintln!("Updating meme repository {} ({})", alias, url);
                     git_ops::update_repo(&path)?;
                 } else {
