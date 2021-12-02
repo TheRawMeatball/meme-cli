@@ -12,7 +12,7 @@ use fontdue::{
     },
     Font, FontSettings, Metrics,
 };
-use image::{save_buffer, DynamicImage, Rgba, RgbaImage};
+use image::{save_buffer, DynamicImage, GrayImage, Luma, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 
 static FONT: &[u8] = include_bytes!("../resources/BebasNeue-Regular.ttf");
@@ -38,48 +38,22 @@ impl MemeTemplate {
         let mut raster_cache = HashMap::new();
 
         for (text, bb) in text.iter().zip(&self.config.text) {
-            let max_height = (bb.max.1 - bb.min.1) as f32;
-            let max_width = (bb.max.0 - bb.min.0) as f32;
-            let mut min = 5.;
-            let mut max = max_font_size;
-
-            let abs_max_lines = text.split(char::is_whitespace).count();
-            let glyphs = loop {
-                let candidate = min + max / 2.;
-                layout.reset(&LayoutSettings {
-                    max_height: Some(max_height),
-                    max_width: Some(max_width),
-                    horizontal_align: HorizontalAlign::Center,
-                    vertical_align: VerticalAlign::Top,
-                    wrap_style: WrapStyle::Word,
-                    wrap_hard_breaks: true,
-                    ..Default::default()
-                });
-                layout.append(
-                    &[&font],
-                    &TextStyle {
-                        text,
-                        px: candidate,
-                        font_index: 0,
-                        user_data: (),
-                    },
-                );
-                if layout.lines() > abs_max_lines || layout.height() > max_height {
-                    max = candidate;
-                } else if min - max <= 0.25 {
-                    break layout.glyphs();
-                } else {
-                    min = candidate;
-                }
-            };
-
-            render_glyphs(
-                &mut self.image,
-                bb.min,
-                glyphs,
+            let max_height = bb.max.1 - bb.min.1;
+            let max_width = bb.max.0 - bb.min.0;
+            let mask = render_text(
                 &mut raster_cache,
+                &mut layout,
                 &font,
+                max_font_size,
+                (max_width, max_height),
+                text,
+            );
+
+            simple_overlay(
+                &mut self.image,
+                &mask,
                 self.config.color.unwrap_or([0., 0., 0., 1.]),
+                bb.min,
             )
         }
 
@@ -101,14 +75,24 @@ impl MemeTemplate {
                 },
             );
             let glyphs = layout.glyphs();
-            render_glyphs(
-                &mut self.image,
-                (0, img_height - font_size.ceil() as u32),
-                glyphs,
-                &mut raster_cache,
-                &font,
-                self.config.color.unwrap_or([0., 0., 0., 1.]),
-            )
+            let color = self.config.color.unwrap_or([0., 0., 0., 1.]);
+            render_glyphs(glyphs, &mut raster_cache, &font, |x, y, coverage| {
+                let mask = coverage as f32 * u8::MAX as f32;
+                let y = y + img_height - font_size.ceil() as u32;
+
+                if (0..self.image.height()).contains(&y) {
+                    let prev = self.image.get_pixel(x, y);
+                    let [r, g, b, a] = prev.0.map(|x| x as f32 / u8::MAX as f32);
+
+                    let zipped = [(r, color[0]), (g, color[1]), (b, color[2]), (a, color[3])];
+
+                    let new = zipped
+                        .map(|(a, b)| (1. - mask) * a + mask * b)
+                        .map(|x| x * u8::MAX as f32)
+                        .map(|x| x as u8);
+                    self.image.put_pixel(x, y, Rgba(new));
+                }
+            });
         }
 
         Ok(self.image)
@@ -116,43 +100,111 @@ impl MemeTemplate {
 }
 
 fn render_glyphs(
-    image: &mut RgbaImage,
-    pos: (u32, u32),
     glyphs: &[GlyphPosition],
     raster_cache: &mut HashMap<GlyphRasterConfig, (Metrics, Vec<u8>)>,
     font: &Font,
-    color: [f32; 4],
+    mut put_pixel: impl FnMut(u32, u32, u8),
 ) {
-    for glyph in glyphs {
+    for glyph in glyphs.iter().filter(|x| !x.char_data.is_control()) {
         let (ref metrics, ref bytes) = raster_cache
             .entry(glyph.key)
             .or_insert_with(|| font.rasterize_config(glyph.key));
 
         for x in 0..metrics.width {
             for y in 0..metrics.height {
-                let coverage = bytes[x + y * metrics.width] as f32 / u8::MAX as f32;
-                let x = pos.0 + x as u32 + glyph.x as u32;
-                let y = pos.1 + y as u32 + glyph.y as u32;
-                if (0..image.width() - 1).contains(&x) && (0..image.height() - 1).contains(&y) {
-                    let existing_color = image.get_pixel(x, y);
-                    let colors = existing_color.0;
-                    let colors = [
-                        ((color[0] * coverage
-                            + (1. - coverage) * (colors[0] as f32 / u8::MAX as f32))
-                            * u8::MAX as f32) as u8,
-                        ((color[1] * coverage
-                            + (1. - coverage) * (colors[1] as f32 / u8::MAX as f32))
-                            * u8::MAX as f32) as u8,
-                        ((color[2] * coverage
-                            + (1. - coverage) * (colors[2] as f32 / u8::MAX as f32))
-                            * u8::MAX as f32) as u8,
-                        ((color[3] * coverage
-                            + (1. - coverage) * (colors[3] as f32 / u8::MAX as f32))
-                            * u8::MAX as f32) as u8,
-                    ];
+                let coverage = bytes[x + y * metrics.width];
+                let x = x as u32 + glyph.x as u32;
+                let y = y as u32 + glyph.y as u32;
+                put_pixel(x, y, coverage);
+            }
+        }
+    }
+}
 
-                    image.put_pixel(x, y, Rgba(colors));
-                }
+// TODO: fix oversizing
+fn get_filling_glyphs<'a>(
+    size: (u32, u32),
+    font: &Font,
+    layout: &'a mut Layout,
+    min_font_size: f32,
+    max_font_size: f32,
+    text: &str,
+) -> &'a [GlyphPosition] {
+    let max_width = size.0 as f32;
+    let max_height = size.1 as f32;
+    let mut min = min_font_size;
+    let mut max = max_font_size;
+
+    let abs_max_lines = text.split(char::is_whitespace).count();
+
+    loop {
+        let candidate = min + max / 2.;
+        layout.reset(&LayoutSettings {
+            max_height: Some(max_height),
+            max_width: Some(max_width),
+            horizontal_align: HorizontalAlign::Center,
+            vertical_align: VerticalAlign::Top,
+            wrap_style: WrapStyle::Word,
+            wrap_hard_breaks: true,
+            ..Default::default()
+        });
+        layout.append(
+            &[font],
+            &TextStyle {
+                text,
+                px: candidate,
+                font_index: 0,
+                user_data: (),
+            },
+        );
+        if layout.lines() > abs_max_lines || layout.height() > max_height {
+            max = candidate;
+        } else if min - max <= 0.25 {
+            break layout.glyphs();
+        } else {
+            min = candidate;
+        }
+    }
+}
+
+fn render_text(
+    raster_cache: &mut HashMap<GlyphRasterConfig, (Metrics, Vec<u8>)>,
+    layout: &mut Layout,
+    font: &Font,
+    max_font_size: f32,
+    size: (u32, u32),
+    text: &str,
+) -> GrayImage {
+    let mut gray_image =
+        GrayImage::from_vec(size.0, size.1, vec![0; (size.0 * size.1) as usize]).unwrap();
+
+    let glyphs = get_filling_glyphs(size, &font, layout, 5., max_font_size, text);
+
+    render_glyphs(glyphs, raster_cache, &font, |x, y, coverage| {
+        gray_image.put_pixel(x, y, Luma([coverage]));
+    });
+
+    gray_image
+}
+
+fn simple_overlay(image: &mut RgbaImage, mask: &GrayImage, color: [f32; 4], pos: (u32, u32)) {
+    for x in 0..mask.width() {
+        for y in 0..mask.height() {
+            let mask = mask.get_pixel(x, y).0[0] as f32 / u8::MAX as f32;
+            let x = pos.0 + x;
+            let y = pos.1 + y;
+
+            if (0..image.width()).contains(&x) && (0..image.height()).contains(&y) {
+                let prev = image.get_pixel(x, y);
+                let [r, g, b, a] = prev.0.map(|x| x as f32 / u8::MAX as f32);
+
+                let zipped = [(r, color[0]), (g, color[1]), (b, color[2]), (a, color[3])];
+
+                let new = zipped
+                    .map(|(a, b)| (1. - mask) * a + mask * b)
+                    .map(|x| x * u8::MAX as f32)
+                    .map(|x| x as u8);
+                image.put_pixel(x, y, Rgba(new));
             }
         }
     }
