@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{io::BufWriter, path::PathBuf};
 
 use anyhow::{anyhow, Error};
 use image::EncodableLayout;
@@ -60,30 +60,50 @@ impl Generate {
     fn run(self, config: Config) -> Result<(), Error> {
         let meme = config.get_meme_template(&self.template)?;
         eprintln!("Template found");
-        let img_buffer = meme.render(
+        let rendered = meme.render(
             &self.inputs,
             &config,
             self.max_size.unwrap_or(600.),
             (!self.no_watermark).then(|| config.watermark()),
-        )?;
+        );
         eprintln!("Meme rendered");
 
         if let Some(out_path) = self.output {
+            match rendered {
+                memeinator::RenderedMeme::Simple(simple) => {
                     if out_path.as_os_str().to_str() == Some("-") {
                         let stdout = std::io::stdout();
                         let mut lock = stdout.lock();
                         let png_encoder = image::png::PngEncoder::new(&mut lock);
                         png_encoder.encode(
-                    img_buffer.as_bytes(),
-                    img_buffer.width(),
-                    img_buffer.height(),
+                            simple.as_bytes(),
+                            simple.width(),
+                            simple.height(),
                             image::ColorType::Rgba8,
                         )?;
                     } else {
-                img_buffer.save(out_path)?;
+                        simple.save(out_path)?;
+                    }
+                }
+                memeinator::RenderedMeme::Animated(animated) => {
+                    if out_path.as_os_str().to_str() == Some("-") {
+                        let stdout = std::io::stdout();
+                        let mut lock = stdout.lock();
+                        let mut gif_encoder = image::gif::GifEncoder::new(&mut lock);
+                        gif_encoder.encode_frames(animated)?;
+                    } else {
+                        let file = std::fs::File::options()
+                            .create(true)
+                            .write(true)
+                            .open(out_path)?;
+                        let buf = BufWriter::new(file);
+                        let mut gif_encoder = image::gif::GifEncoder::new(buf);
+                        gif_encoder.encode_frames(animated)?;
+                    }
+                }
             }
         } else {
-            image_io::image_out(&img_buffer)?;
+            image_io::image_out(rendered)?;
         }
         eprintln!("Done!");
         Ok(())

@@ -21,31 +21,34 @@ pub fn root(ctx: Ctx) -> Ctx {
     ctx.with(UiColor(Color::BLACK))
         .with(Width(Units::Pixels(360.)))
         .with(Height(Units::Percentage(100.)))
-        .children(res::<TextRects>().lens(TextRects::rects).each(
-            |tracked: TrackedItemObserver<Entity>| {
-                move |ctx: &mut McCtx| {
-                    ctx.dyn_group(tracked.map(|(_, index): (&Entity, usize)| index).map_child(
-                        |index| {
+        .children(
+            res::<TextRects>()
+                .lens(TextRects::rects)
+                .each(|entity, index: IndexObserver| {
+                    move |ctx: &mut McCtx| {
+                        ctx.dyn_group(index.map_child(|index| {
                             move |ctx: &mut McCtx| {
                                 if index != 0 {
                                     ctx.c(separator);
                                 }
                             }
-                        },
-                    ));
-                    ctx.c(move |ctx: Ctx| text_size_repr_elem(tracked, ctx));
-                }
-            },
-        ))
+                        }));
+                        ctx.c(move |ctx: Ctx| text_size_repr_elem(entity, index, ctx));
+                    }
+                }),
+        )
         .child(top_buttons)
 }
 
-fn text_size_repr_elem(tracked: TrackedItemObserver<Entity>, ctx: Ctx) -> Ctx {
+fn text_size_repr_elem(
+    entity: impl WorldLens<Out = Entity>,
+    index: IndexObserver,
+    ctx: Ctx,
+) -> Ctx {
     let item_text = |f: &'static (dyn Fn(&TextRect) -> i32 + Send + Sync)| {
         text(
-            tracked
-                .map(|(&item, _): (&Entity, usize)| item)
-                .map(|item| component::<TextRect>(item))
+            entity
+                .map(|&entity: &Entity| component::<TextRect>(entity))
                 .flatten()
                 .map(
                     move |text_item: FlattenReturn<LensObserver<ComponentLens<TextRect>>>| {
@@ -76,9 +79,10 @@ fn text_size_repr_elem(tracked: TrackedItemObserver<Entity>, ctx: Ctx) -> Ctx {
             button("remove text")
                 .with(Width(Units::Pixels(60.)))
                 .with(Height(Units::Pixels(60.)))
-                .with(tracked.map(|(&entity, index): (&Entity, usize)| {
+                .with(index.dedup().map(|&index: &usize| {
                     OnClick::new(move |w| {
-                        w.get_resource_mut::<TextRects>()
+                        let entity = w
+                            .get_resource_mut::<TextRects>()
                             .unwrap()
                             .rects
                             .remove(index);

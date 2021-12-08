@@ -117,7 +117,7 @@ fn keep_on_edge_system(
 }
 
 fn text_rect_system(
-    mut rects: Query<
+    mut rects_q: Query<
         (&mut Sprite, &mut Transform, &TextRect, &Children),
         (Without<MemeSprite>, Without<RectHandle>),
     >,
@@ -142,7 +142,7 @@ fn text_rect_system(
 
     let size = meme_sprite_size;
 
-    for (mut sprite, mut transform, rect, handles) in rects.iter_mut() {
+    for (mut sprite, mut transform, rect, handles) in rects_q.iter_mut() {
         let min = Vec2::Y * size.y + Vec2::new(1., -1.) * rect.min.as_vec2() * scale;
         let max = Vec2::Y * size.y + Vec2::new(1., -1.) * rect.max.as_vec2() * scale;
 

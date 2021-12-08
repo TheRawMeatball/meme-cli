@@ -12,26 +12,60 @@ use fontdue::{
     },
     Font, FontSettings, Metrics,
 };
-use image::{save_buffer, DynamicImage, GrayImage, Luma, Rgba, RgbaImage};
+use image::{save_buffer, AnimationDecoder, DynamicImage, Frame, GrayImage, Luma, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 
 static FONT: &[u8] = include_bytes!("../resources/BebasNeue-Regular.ttf");
 
 mod git_ops;
 
-pub struct MemeTemplate {
+pub enum MemeTemplate {
+    Simple(SimpleMemeTemplate),
+    Animated(AnimatedMemeTemplate),
+}
+
+pub enum RenderedMeme {
+    Simple(RgbaImage),
+    Animated(Vec<Frame>),
+}
+
+impl MemeTemplate {
+    pub fn render(
+        self,
+        text: &[String],
+        config: &Config,
+        max_font_size: f32,
+        watermark_msg: Option<&str>,
+    ) -> RenderedMeme {
+        match self {
+            MemeTemplate::Simple(simple) => {
+                RenderedMeme::Simple(simple.render(text, config, max_font_size, watermark_msg))
+            }
+            MemeTemplate::Animated(animated) => {
+                RenderedMeme::Animated(animated.render(text, config, max_font_size, watermark_msg))
+            }
+        }
+    }
+}
+
+pub struct SimpleMemeTemplate {
     image: RgbaImage,
     config: MemeConfig,
 }
 
-impl MemeTemplate {
+pub struct AnimatedMemeTemplate {
+    frames: Vec<Frame>,
+    config: MemeConfig,
+}
+
+impl SimpleMemeTemplate {
     pub fn render(
         mut self,
         text: &[String],
         config: &Config,
         max_font_size: f32,
         watermark_msg: Option<&str>,
-    ) -> Result<RgbaImage, Error> {
+    ) -> RgbaImage {
         let font = fontdue::Font::from_bytes(FONT, FontSettings::default()).unwrap();
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
 
@@ -58,44 +92,94 @@ impl MemeTemplate {
         }
 
         if let Some(watermark) = watermark_msg {
-            let (img_width, img_height) = (self.image.width(), self.image.height());
-            let font_size = img_width.min(img_height) as f32 / config.watermark_size_fraction;
-            layout.reset(&LayoutSettings {
-                horizontal_align: HorizontalAlign::Left,
-                vertical_align: VerticalAlign::Middle,
-                ..Default::default()
-            });
-            layout.append(
-                &[&font],
-                &TextStyle {
-                    text: watermark,
-                    px: font_size,
-                    font_index: 0,
-                    user_data: (),
-                },
+            let (watermark, pos) = render_watermark(
+                &mut raster_cache,
+                &mut layout,
+                &font,
+                (self.image.width(), self.image.height()),
+                config,
+                watermark,
             );
-            let glyphs = layout.glyphs();
-            let color = self.config.color.unwrap_or([0., 0., 0., 1.]);
-            render_glyphs(glyphs, &mut raster_cache, &font, |x, y, coverage| {
-                let mask = coverage as f32 * u8::MAX as f32;
-                let y = y + img_height - font_size.ceil() as u32;
 
-                if (0..self.image.height()).contains(&y) {
-                    let prev = self.image.get_pixel(x, y);
-                    let [r, g, b, a] = prev.0.map(|x| x as f32 / u8::MAX as f32);
-
-                    let zipped = [(r, color[0]), (g, color[1]), (b, color[2]), (a, color[3])];
-
-                    let new = zipped
-                        .map(|(a, b)| (1. - mask) * a + mask * b)
-                        .map(|x| x * u8::MAX as f32)
-                        .map(|x| x as u8);
-                    self.image.put_pixel(x, y, Rgba(new));
-                }
-            });
+            simple_overlay(
+                &mut self.image,
+                &watermark,
+                self.config.color.unwrap_or([0., 0., 0., 1.]),
+                (0, pos),
+            )
         }
 
-        Ok(self.image)
+        self.image
+    }
+}
+
+impl AnimatedMemeTemplate {
+    pub fn render(
+        mut self,
+        text: &[String],
+        config: &Config,
+        max_font_size: f32,
+        watermark_msg: Option<&str>,
+    ) -> Vec<Frame> {
+        let font = fontdue::Font::from_bytes(FONT, FontSettings::default()).unwrap();
+        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
+
+        let mut raster_cache = HashMap::new();
+
+        let texts: Vec<_> = text
+            .iter()
+            .zip(&self.config.text)
+            .map(|(text, bb)| {
+                let max_height = bb.max.1 - bb.min.1;
+                let max_width = bb.max.0 - bb.min.0;
+                let image = render_text(
+                    &mut raster_cache,
+                    &mut layout,
+                    &font,
+                    max_font_size,
+                    (max_width, max_height),
+                    text,
+                );
+                (image, bb.min)
+            })
+            .collect();
+
+        let watermark = watermark_msg.map(|watermark| {
+            render_watermark(
+                &mut raster_cache,
+                &mut layout,
+                &font,
+                (
+                    self.frames[0].buffer().width(),
+                    self.frames[0].buffer().height(),
+                ),
+                config,
+                watermark,
+            )
+        });
+
+        for frame in &mut self.frames {
+            let image = frame.buffer_mut();
+            for (mask, pos) in &texts {
+                simple_overlay(
+                    image,
+                    &mask,
+                    self.config.color.unwrap_or([0., 0., 0., 1.]),
+                    *pos,
+                )
+            }
+
+            if let Some((watermark, pos)) = &watermark {
+                simple_overlay(
+                    image,
+                    &watermark,
+                    self.config.color.unwrap_or([0., 0., 0., 1.]),
+                    (0, *pos),
+                )
+            }
+        }
+
+        self.frames
     }
 }
 
@@ -165,6 +249,45 @@ fn get_filling_glyphs<'a>(
             min = candidate;
         }
     }
+}
+
+fn render_watermark(
+    raster_cache: &mut HashMap<GlyphRasterConfig, (Metrics, Vec<u8>)>,
+    layout: &mut Layout,
+    font: &Font,
+    image_size: (u32, u32),
+    config: &Config,
+    watermark: &str,
+) -> (GrayImage, u32) {
+    let (img_width, img_height) = image_size;
+    let font_size = img_width.min(img_height) as f32 / config.watermark_size_fraction;
+    layout.reset(&LayoutSettings {
+        horizontal_align: HorizontalAlign::Left,
+        vertical_align: VerticalAlign::Middle,
+        ..Default::default()
+    });
+    layout.append(
+        &[font],
+        &TextStyle {
+            text: watermark,
+            px: font_size,
+            font_index: 0,
+            user_data: (),
+        },
+    );
+
+    let mut gray_image = GrayImage::from_vec(
+        img_width,
+        layout.height() as u32,
+        vec![0; (img_width * layout.height() as u32) as usize],
+    )
+    .unwrap();
+
+    render_glyphs(layout.glyphs(), raster_cache, &font, |x, y, coverage| {
+        gray_image.put_pixel(x, y, Luma([coverage]));
+    });
+
+    (gray_image, img_height - font_size.ceil() as u32)
 }
 
 fn render_text(
@@ -306,14 +429,40 @@ impl Config {
 
                     let config = serde_json::from_str(&fs::read_to_string(config_path)?)?;
 
-                    let img = image::png::PngDecoder::new(
-                        fs::File::open(dir_path.join("image.png")).with_context(|| {
-                            format!("Cannot read image.png for format {}", &template_name)
-                        })?,
-                    )?;
-                    let image = DynamicImage::from_decoder(img)?.to_rgba8();
+                    match fs::File::open(dir_path.join("image.png")) {
+                        Ok(img) => {
+                            let img = image::png::PngDecoder::new(img)?;
+                            let image = DynamicImage::from_decoder(img)?.to_rgba8();
 
-                    return Ok(MemeTemplate { config, image });
+                            return Ok(MemeTemplate::Simple(SimpleMemeTemplate { config, image }));
+                        }
+                        Err(e) => match e.kind() {
+                            std::io::ErrorKind::NotFound => {
+                                let file = fs::File::open(dir_path.join("animated.gif"))
+                                    .with_context(|| {
+                                        format!(
+                                            "Cannot read animated.gif for format {}",
+                                            &template_name
+                                        )
+                                    })?;
+
+                                let img = image::gif::GifDecoder::new(file)?;
+                                let mut frames = vec![];
+                                for frame in img.into_frames() {
+                                    frames.push(frame?);
+                                }
+                                return Ok(MemeTemplate::Animated(AnimatedMemeTemplate {
+                                    config,
+                                    frames,
+                                }));
+                            }
+                            _ => {
+                                return Err(e).with_context(|| {
+                                    format!("Cannot read image.png for format {}", &template_name)
+                                })
+                            }
+                        },
+                    }
                 }
             }
         }
