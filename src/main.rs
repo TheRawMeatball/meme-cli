@@ -1,4 +1,4 @@
-use std::{io::BufWriter, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Error};
 use image::EncodableLayout;
@@ -69,38 +69,18 @@ impl Generate {
         eprintln!("Meme rendered");
 
         if let Some(out_path) = self.output {
-            match rendered {
-                memeinator::RenderedMeme::Simple(simple) => {
-                    if out_path.as_os_str().to_str() == Some("-") {
-                        let stdout = std::io::stdout();
-                        let mut lock = stdout.lock();
-                        let png_encoder = image::png::PngEncoder::new(&mut lock);
-                        png_encoder.encode(
-                            simple.as_bytes(),
-                            simple.width(),
-                            simple.height(),
-                            image::ColorType::Rgba8,
-                        )?;
-                    } else {
-                        simple.save(out_path)?;
-                    }
-                }
-                memeinator::RenderedMeme::Animated(animated) => {
-                    if out_path.as_os_str().to_str() == Some("-") {
-                        let stdout = std::io::stdout();
-                        let mut lock = stdout.lock();
-                        let mut gif_encoder = image::gif::GifEncoder::new(&mut lock);
-                        gif_encoder.encode_frames(animated)?;
-                    } else {
-                        let file = std::fs::File::options()
-                            .create(true)
-                            .write(true)
-                            .open(out_path)?;
-                        let buf = BufWriter::new(file);
-                        let mut gif_encoder = image::gif::GifEncoder::new(buf);
-                        gif_encoder.encode_frames(animated)?;
-                    }
-                }
+            if out_path.as_os_str().to_str() == Some("-") {
+                let stdout = std::io::stdout();
+                let mut lock = stdout.lock();
+                let png_encoder = image::png::PngEncoder::new(&mut lock);
+                png_encoder.encode(
+                    rendered.as_bytes(),
+                    rendered.width(),
+                    rendered.height(),
+                    image::ColorType::Rgba8,
+                )?;
+            } else {
+                rendered.save(out_path)?;
             }
         } else {
             image_io::image_out(rendered)?;

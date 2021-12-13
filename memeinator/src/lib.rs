@@ -12,53 +12,19 @@ use fontdue::{
     },
     Font, FontSettings, Metrics,
 };
-use image::{save_buffer, AnimationDecoder, DynamicImage, Frame, GrayImage, Luma, Rgba, RgbaImage};
+use image::{save_buffer, DynamicImage, GrayImage, Luma, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 
 static FONT: &[u8] = include_bytes!("../resources/BebasNeue-Regular.ttf");
 
 mod git_ops;
 
-pub enum MemeTemplate {
-    Simple(SimpleMemeTemplate),
-    Animated(AnimatedMemeTemplate),
-}
-
-pub enum RenderedMeme {
-    Simple(RgbaImage),
-    Animated(Vec<Frame>),
-}
-
-impl MemeTemplate {
-    pub fn render(
-        self,
-        text: &[String],
-        config: &Config,
-        max_font_size: f32,
-        watermark_msg: Option<&str>,
-    ) -> RenderedMeme {
-        match self {
-            MemeTemplate::Simple(simple) => {
-                RenderedMeme::Simple(simple.render(text, config, max_font_size, watermark_msg))
-            }
-            MemeTemplate::Animated(animated) => {
-                RenderedMeme::Animated(animated.render(text, config, max_font_size, watermark_msg))
-            }
-        }
-    }
-}
-
-pub struct SimpleMemeTemplate {
+pub struct MemeTemplate {
     image: RgbaImage,
     config: MemeConfig,
 }
 
-pub struct AnimatedMemeTemplate {
-    frames: Vec<Frame>,
-    config: MemeConfig,
-}
-
-impl SimpleMemeTemplate {
+impl MemeTemplate {
     pub fn render(
         mut self,
         text: &[String],
@@ -110,76 +76,6 @@ impl SimpleMemeTemplate {
         }
 
         self.image
-    }
-}
-
-impl AnimatedMemeTemplate {
-    pub fn render(
-        mut self,
-        text: &[String],
-        config: &Config,
-        max_font_size: f32,
-        watermark_msg: Option<&str>,
-    ) -> Vec<Frame> {
-        let font = fontdue::Font::from_bytes(FONT, FontSettings::default()).unwrap();
-        let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
-
-        let mut raster_cache = HashMap::new();
-
-        let texts: Vec<_> = text
-            .iter()
-            .zip(&self.config.text)
-            .map(|(text, bb)| {
-                let max_height = bb.max.1 - bb.min.1;
-                let max_width = bb.max.0 - bb.min.0;
-                let image = render_text(
-                    &mut raster_cache,
-                    &mut layout,
-                    &font,
-                    max_font_size,
-                    (max_width, max_height),
-                    text,
-                );
-                (image, bb.min)
-            })
-            .collect();
-
-        let watermark = watermark_msg.map(|watermark| {
-            render_watermark(
-                &mut raster_cache,
-                &mut layout,
-                &font,
-                (
-                    self.frames[0].buffer().width(),
-                    self.frames[0].buffer().height(),
-                ),
-                config,
-                watermark,
-            )
-        });
-
-        for frame in &mut self.frames {
-            let image = frame.buffer_mut();
-            for (mask, pos) in &texts {
-                simple_overlay(
-                    image,
-                    &mask,
-                    self.config.color.unwrap_or([0., 0., 0., 1.]),
-                    *pos,
-                )
-            }
-
-            if let Some((watermark, pos)) = &watermark {
-                simple_overlay(
-                    image,
-                    &watermark,
-                    self.config.color.unwrap_or([0., 0., 0., 1.]),
-                    (0, *pos),
-                )
-            }
-        }
-
-        self.frames
     }
 }
 
@@ -429,40 +325,14 @@ impl Config {
 
                     let config = serde_json::from_str(&fs::read_to_string(config_path)?)?;
 
-                    match fs::File::open(dir_path.join("image.png")) {
-                        Ok(img) => {
-                            let img = image::png::PngDecoder::new(img)?;
-                            let image = DynamicImage::from_decoder(img)?.to_rgba8();
+                    let img = fs::File::open(dir_path.join("image.png")).with_context(|| {
+                        format!("Cannot read image.png for format {}", &template_name)
+                    })?;
 
-                            return Ok(MemeTemplate::Simple(SimpleMemeTemplate { config, image }));
-                        }
-                        Err(e) => match e.kind() {
-                            std::io::ErrorKind::NotFound => {
-                                let file = fs::File::open(dir_path.join("animated.gif"))
-                                    .with_context(|| {
-                                        format!(
-                                            "Cannot read animated.gif for format {}",
-                                            &template_name
-                                        )
-                                    })?;
+                    let img = image::png::PngDecoder::new(img)?;
+                    let image = DynamicImage::from_decoder(img)?.to_rgba8();
 
-                                let img = image::gif::GifDecoder::new(file)?;
-                                let mut frames = vec![];
-                                for frame in img.into_frames() {
-                                    frames.push(frame?);
-                                }
-                                return Ok(MemeTemplate::Animated(AnimatedMemeTemplate {
-                                    config,
-                                    frames,
-                                }));
-                            }
-                            _ => {
-                                return Err(e).with_context(|| {
-                                    format!("Cannot read image.png for format {}", &template_name)
-                                })
-                            }
-                        },
-                    }
+                    return Ok(MemeTemplate { config, image });
                 }
             }
         }
