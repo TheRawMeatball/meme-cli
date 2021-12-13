@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Error};
 use image::EncodableLayout;
-use memeinator::{Config, MemeConfig, MemeText};
+use memeinator::{Config, MemeConfig, MemeContent, MemeField};
 use structopt::{clap::Shell, StructOpt};
 
 mod image_io;
@@ -51,20 +51,44 @@ struct Generate {
     #[structopt(short, long)]
     max_size: Option<f32>,
 
-    // Disables adding the watermark
+    // Set a custom watermark
     #[structopt(short, long)]
-    no_watermark: bool,
+    watermark: Option<Option<String>>,
+}
+
+fn parse_as_meme_content(input: String, config: &Config) -> Result<MemeContent, Error> {
+    if let Some(input) = input.strip_prefix("/meme ") {
+        let mut parts = input.split("$$");
+        let template = parts.next().ok_or(anyhow!("meme needs template"))?;
+        let inputs = parts.map(String::from).map(MemeContent::Text).collect();
+        let template = config.get_meme_template(template)?;
+        Ok(MemeContent::Meme(template, inputs))
+    } else {
+        Ok(MemeContent::Text(input))
+    }
 }
 
 impl Generate {
     fn run(self, config: Config) -> Result<(), Error> {
         let meme = config.get_meme_template(&self.template)?;
         eprintln!("Template found");
+
+        let mut inputs = vec![];
+        for inp in self
+            .inputs
+            .into_iter()
+            .map(|input| parse_as_meme_content(input, &config))
+        {
+            inputs.push(inp?);
+        }
         let rendered = meme.render(
-            &self.inputs,
-            &config,
+            inputs,
             self.max_size.unwrap_or(600.),
-            (!self.no_watermark).then(|| config.watermark()),
+            self.watermark
+                .as_ref()
+                .map(|o| o.as_deref())
+                .unwrap_or_else(|| Some(config.watermark())),
+            config.watermark_size_fraction(),
         );
         eprintln!("Meme rendered");
 
@@ -115,7 +139,7 @@ impl MakeTemplate {
         for coord in self.coordinates {
             let mut iterator = coord.split("-").map(str::parse::<u32>);
             let e = || anyhow!("Incorrect coordinate literal");
-            let text = MemeText {
+            let text = MemeField {
                 min: (
                     iterator.next().ok_or_else(e)??,
                     iterator.next().ok_or_else(e)??,

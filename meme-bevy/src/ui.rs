@@ -7,7 +7,7 @@ use bevy::{
     },
     sprite2::{PipelinedSpriteBundle, Sprite},
 };
-use memeinator::{Config, MemeConfig, MemeText};
+use memeinator::{Config, MemeConfig, MemeField};
 use ui4::{
     lens::{ComponentLens, LensObserver},
     prelude::*,
@@ -206,7 +206,7 @@ fn top_buttons(mut ctx: Ctx) -> Ctx {
             .rects
             .iter()
             .map(|&rect| rects_q.get(rect).unwrap())
-            .map(|rect| MemeText {
+            .map(|rect| MemeField {
                 min: (
                     rect.min.x.min(rect.max.x) as u32,
                     rect.min.y.min(rect.max.y) as u32,

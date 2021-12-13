@@ -19,42 +19,61 @@ static FONT: &[u8] = include_bytes!("../resources/BebasNeue-Regular.ttf");
 
 mod git_ops;
 
+#[derive(Debug)]
 pub struct MemeTemplate {
     image: RgbaImage,
     config: MemeConfig,
 }
 
+#[derive(Debug)]
+pub enum MemeContent {
+    Text(String),
+    Meme(MemeTemplate, Vec<MemeContent>),
+    Image(RgbaImage),
+}
+
 impl MemeTemplate {
     pub fn render(
         mut self,
-        text: &[String],
-        config: &Config,
+        content: Vec<MemeContent>,
         max_font_size: f32,
         watermark_msg: Option<&str>,
+        watermark_size_fraction: f32,
     ) -> RgbaImage {
         let font = fontdue::Font::from_bytes(FONT, FontSettings::default()).unwrap();
         let mut layout = Layout::new(CoordinateSystem::PositiveYDown);
 
         let mut raster_cache = HashMap::new();
 
-        for (text, bb) in text.iter().zip(&self.config.text) {
-            let max_height = bb.max.1 - bb.min.1;
-            let max_width = bb.max.0 - bb.min.0;
-            let mask = render_text(
-                &mut raster_cache,
-                &mut layout,
-                &font,
-                max_font_size,
-                (max_width, max_height),
-                text,
-            );
+        for (content, bb) in content.into_iter().zip(&self.config.text) {
+            match content {
+                MemeContent::Text(text) => {
+                    let max_height = bb.max.1 - bb.min.1;
+                    let max_width = bb.max.0 - bb.min.0;
+                    let mask = render_text(
+                        &mut raster_cache,
+                        &mut layout,
+                        &font,
+                        max_font_size,
+                        (max_width, max_height),
+                        &text,
+                    );
 
-            simple_overlay(
-                &mut self.image,
-                &mask,
-                self.config.color.unwrap_or([0., 0., 0., 1.]),
-                bb.min,
-            )
+                    simple_overlay(
+                        &mut self.image,
+                        &mask,
+                        self.config.color.unwrap_or([0., 0., 0., 1.]),
+                        bb.min,
+                    )
+                }
+                MemeContent::Meme(meme, sub_content) => {
+                    let img = meme.render(sub_content, max_font_size, None, 0.);
+                    overlay_image_into_slot(img, &mut self.image, bb);
+                }
+                MemeContent::Image(img) => {
+                    overlay_image_into_slot(img, &mut self.image, bb);
+                }
+            }
         }
 
         if let Some(watermark) = watermark_msg {
@@ -63,7 +82,7 @@ impl MemeTemplate {
                 &mut layout,
                 &font,
                 (self.image.width(), self.image.height()),
-                config,
+                watermark_size_fraction,
                 watermark,
             );
 
@@ -77,6 +96,31 @@ impl MemeTemplate {
 
         self.image
     }
+}
+
+fn overlay_image_into_slot(img: RgbaImage, base: &mut RgbaImage, bb: &MemeField) {
+    let img_base_width = img.width() as f32;
+    let img_base_height = img.height() as f32;
+    let max_height = (bb.max.1 - bb.min.1) as f32;
+    let max_width = (bb.max.0 - bb.min.0) as f32;
+    let limited_by_y = max_width / max_height > img_base_width / img_base_height;
+    let (width, height) = if limited_by_y {
+        (img_base_width * (max_height / img_base_height), max_height)
+    } else {
+        (max_width, img_base_height * (max_width / img_base_width))
+    };
+    let rescaled = image::imageops::thumbnail(&img, width as u32, height as u32);
+    let (x_offset, y_offset) = if limited_by_y {
+        ((max_width - width) / 2., 0.)
+    } else {
+        (0., (max_height - height) / 2.)
+    };
+    image::imageops::overlay(
+        base,
+        &rescaled,
+        x_offset as u32 + bb.min.0,
+        y_offset as u32 + bb.min.1,
+    );
 }
 
 fn render_glyphs(
@@ -152,11 +196,11 @@ fn render_watermark(
     layout: &mut Layout,
     font: &Font,
     image_size: (u32, u32),
-    config: &Config,
+    watermark_size_fraction: f32,
     watermark: &str,
 ) -> (GrayImage, u32) {
     let (img_width, img_height) = image_size;
-    let font_size = img_width.min(img_height) as f32 / config.watermark_size_fraction;
+    let font_size = img_width.min(img_height) as f32 / watermark_size_fraction;
     layout.reset(&LayoutSettings {
         horizontal_align: HorizontalAlign::Left,
         vertical_align: VerticalAlign::Middle,
@@ -229,14 +273,14 @@ fn simple_overlay(image: &mut RgbaImage, mask: &GrayImage, color: [f32; 4], pos:
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MemeConfig {
     pub color: Option<[f32; 4]>,
-    pub text: Vec<MemeText>,
+    pub text: Vec<MemeField>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct MemeText {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MemeField {
     pub min: (u32, u32),
     pub max: (u32, u32),
 }
@@ -298,6 +342,7 @@ impl Config {
             .flatten()
             .flatten()
             .flat_map(|meme_dir| meme_dir.file_name().into_string())
+            .filter(|n| n != ".git")
     }
 
     pub fn get_meme_template(&self, template: &str) -> Result<MemeTemplate, Error> {
@@ -371,6 +416,10 @@ impl Config {
         fs::write(meme_path.join("config.json"), config.as_bytes())?;
 
         Ok(())
+    }
+
+    pub fn watermark_size_fraction(&self) -> f32 {
+        self.watermark_size_fraction
     }
 }
 
