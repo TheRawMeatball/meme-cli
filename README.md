@@ -15,7 +15,7 @@ Alternatively, install from source using
 ```sh
 git clone https://github.com/TheRawMeatball/meme-cli
 cd meme-cli
-cargo install --path meme-cli
+cargo install --path .
 ```
 
 An AUR package is also planned
