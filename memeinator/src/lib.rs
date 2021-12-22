@@ -12,7 +12,7 @@ use fontdue::{
     },
     Font, FontSettings, Metrics,
 };
-use image::{save_buffer, DynamicImage, GrayImage, Luma, Rgba, RgbaImage};
+use image::{save_buffer, DynamicImage, GrayImage, Luma, RgbImage, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 
 static FONT: &[u8] = include_bytes!("../resources/BebasNeue-Regular.ttf");
@@ -96,6 +96,24 @@ impl MemeTemplate {
 
         self.image
     }
+}
+
+pub fn add_top_text(img: RgbaImage, text: &str) -> RgbaImage {
+    let new_height = img.height() + img.width() / 4;
+    let mut new = RgbaImage::new(img.width(), new_height);
+
+    image::imageops::overlay(&mut new, &img, 0, img.width() / 4);
+
+    let max = (img.width(), img.width() / 4);
+    let tt_template = MemeTemplate {
+        image: img,
+        config: MemeConfig {
+            color: Some([1.; 4]),
+            text: vec![MemeField { min: (0, 0), max }],
+        },
+    };
+
+    tt_template.render(vec![MemeContent::Text(text.to_owned())], 50., None, 0.)
 }
 
 fn overlay_image_into_slot(img: RgbaImage, base: &mut RgbaImage, bb: &MemeField) {

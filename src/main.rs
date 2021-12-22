@@ -54,6 +54,9 @@ struct Generate {
     // Set a custom watermark
     #[structopt(short, long)]
     watermark: Option<Option<String>>,
+
+    #[structopt(short, long)]
+    top_text: Option<String>,
 }
 
 fn parse_as_meme_content(input: String, config: &Config) -> Result<MemeContent, Error> {
@@ -81,7 +84,7 @@ impl Generate {
         {
             inputs.push(inp?);
         }
-        let rendered = meme.render(
+        let mut rendered = meme.render(
             inputs,
             self.max_size.unwrap_or(600.),
             self.watermark
@@ -90,6 +93,11 @@ impl Generate {
                 .unwrap_or_else(|| Some(config.watermark())),
             config.watermark_size_fraction(),
         );
+
+        if let Some(tt) = self.top_text {
+            rendered = memeinator::add_top_text(rendered, &tt);
+        }
+
         eprintln!("Meme rendered");
 
         if let Some(out_path) = self.output {
