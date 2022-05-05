@@ -13,6 +13,7 @@ structopt = "0.3.25"
 memeinator = { path = "memeinator", version = "0.1.0" }
 anyhow = "1.0.47"
 image = "0.23"
+libqoi = "0.2.1"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard = "2"

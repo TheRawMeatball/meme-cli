@@ -4,6 +4,7 @@ use anyhow::{anyhow, Error};
 use image::EncodableLayout;
 use memeinator::{Config, MemeConfig, MemeContent, MemeField};
 use structopt::{clap::Shell, StructOpt};
+use libqoi;
 
 mod image_io;
 
@@ -112,7 +113,15 @@ impl Generate {
                     image::ColorType::Rgba8,
                 )?;
             } else {
-                rendered.save(out_path)?;
+                if out_path.extension().map(|x| x.to_str()).flatten() == Some("qoi") {
+                    use std::io::Write;
+                    let w = rendered.width();
+                    let h = rendered.height();
+                    let qoi = libqoi::encode_qoi(&rendered, h as usize, w as usize, 4, 0).unwrap();
+                    std::fs::File::create(out_path).unwrap().write_all(&qoi).unwrap();
+                } else {
+                    rendered.save(out_path)?;
+                }
             }
         } else {
             image_io::image_out(rendered)?;
