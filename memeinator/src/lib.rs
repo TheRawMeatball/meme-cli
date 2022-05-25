@@ -35,6 +35,7 @@ pub enum MemeContent {
 impl MemeTemplate {
     pub fn render(
         mut self,
+        text_color: Rgba<u8>,
         content: Vec<MemeContent>,
         max_font_size: f32,
         watermark_msg: Option<&str>,
@@ -57,17 +58,23 @@ impl MemeTemplate {
                         max_font_size,
                         (max_width, max_height),
                         &text,
+                        text_color,
                     );
 
                     simple_overlay(
                         &mut self.image,
                         &mask,
-                        self.config.color.unwrap_or([0., 0., 0., 1.]),
+                        [
+                            text_color[0] as f32,
+                            text_color[1] as f32,
+                            text_color[2] as f32,
+                            text_color[3] as f32
+                        ],
                         bb.min,
                     )
                 }
                 MemeContent::Meme(meme, sub_content) => {
-                    let img = meme.render(sub_content, max_font_size, None, 0.);
+                    let img = meme.render(text_color, sub_content, max_font_size, None, 0.);
                     overlay_image_into_slot(img, &mut self.image, bb);
                 }
                 MemeContent::Image(img) => {
@@ -98,7 +105,7 @@ impl MemeTemplate {
     }
 }
 
-pub fn add_top_text(img: RgbaImage, text: &str) -> RgbaImage {
+pub fn add_top_text(img: RgbaImage, text: &str, color: Rgba<u8>) -> RgbaImage {
     let new_height = img.height() + img.width() / 4;
     let mut new = RgbaImage::new(img.width(), new_height);
 
@@ -113,7 +120,8 @@ pub fn add_top_text(img: RgbaImage, text: &str) -> RgbaImage {
         },
     };
 
-    tt_template.render(vec![MemeContent::Text(text.to_owned())], 50., None, 0.)
+    //tt_template.render(vec![MemeContent::Text(text.to_owned())], 50., None, 0.)
+    tt_template.render(color,vec![MemeContent::Text(text.to_owned())], 50., None, 0.)
 }
 
 fn overlay_image_into_slot(img: RgbaImage, base: &mut RgbaImage, bb: &MemeField) {
@@ -255,6 +263,7 @@ fn render_text(
     max_font_size: f32,
     size: (u32, u32),
     text: &str,
+    color: Rgba<u8>
 ) -> GrayImage {
     let mut gray_image =
         GrayImage::from_vec(size.0, size.1, vec![0; (size.0 * size.1) as usize]).unwrap();

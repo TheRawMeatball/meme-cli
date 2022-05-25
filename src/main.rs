@@ -2,8 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Error};
 use image::EncodableLayout;
+use image::Rgba;
 use memeinator::{Config, MemeConfig, MemeContent, MemeField};
 use structopt::{clap::Shell, StructOpt};
+use std::str::FromStr;
 
 mod image_io;
 
@@ -34,6 +36,18 @@ enum GenerateProtoCompletions {
     PowerShell,
 }
 
+#[derive(Debug,Clone,Copy)]
+struct Rgba8 (Rgba<u8>);
+
+impl FromStr for Rgba8 {
+    type Err = String;
+    fn from_str(color: &str) -> Result<Self, String> { 
+        use css_color_parser::Color as CssColor;
+        let c = color.parse::<CssColor>().map_err(|x| format!("error parsing color: {}", x))?;
+        Ok(Rgba8(Rgba([c.r, c.g, c.b, (c.a * 255.0) as u8])))
+    }
+}
+
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gen", about = "Generate a meme from a template")]
 struct Generate {
@@ -57,6 +71,9 @@ struct Generate {
 
     #[structopt(short, long)]
     top_text: Option<String>,
+
+    #[structopt(short, long)]
+    color: Option<Rgba8>
 }
 
 fn parse_as_meme_content(input: String, config: &Config) -> Result<MemeContent, Error> {
@@ -85,6 +102,7 @@ impl Generate {
             inputs.push(inp?);
         }
         let mut rendered = meme.render(
+            self.color.unwrap_or(Rgba8(Rgba([0,0,0,255]))).0,
             inputs,
             self.max_size.unwrap_or(600.),
             self.watermark
@@ -95,7 +113,8 @@ impl Generate {
         );
 
         if let Some(tt) = self.top_text {
-            rendered = memeinator::add_top_text(rendered, &tt);
+            rendered = memeinator::add_top_text(rendered, &tt,self.color.unwrap_or(Rgba8(Rgba([0,0,0,255]))).0);
+            
         }
 
         eprintln!("Meme rendered");
